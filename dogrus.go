@@ -1,8 +1,10 @@
+// Package dogrus provides a hook for the logrus logging package.
+// This hook allow to easily send every log entry to Datadog without the need
+// of an external agent.
 package dogrus
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -48,12 +50,15 @@ func New(apiKey string, opts Opts) *Hook {
 	if opts.FlushPeriod == 0 {
 		opts.FlushPeriod = 30 * time.Second
 	}
+
 	if opts.MaxBatchSize == 0 {
 		opts.MaxBatchSize = 30
 	}
+
 	if opts.PostURL == "" {
 		opts.PostURL = "https://http-intake.logs.datadoghq.eu/v1/input"
 	}
+
 	if opts.Formatter == nil {
 		opts.Formatter = &logrus.JSONFormatter{
 			FieldMap: logrus.FieldMap{
@@ -103,19 +108,21 @@ func (d *Hook) Levels() []logrus.Level {
 // Flush flushes the current batch of log entries, sending them to Datadog
 // server.
 func (d *Hook) Flush() error {
-	fmt.Println("flush")
 	currentBatch := d.batch
 	d.batch = make(chan []byte, d.opts.MaxBatchSize)
+
 	close(currentBatch)
 
 	d.lastFlush = time.Now()
 
 	// prepare json body
 	buffer := new(bytes.Buffer)
+
 	_, err := buffer.WriteString("[")
 	if err != nil {
 		return err
 	}
+
 	for log := range currentBatch {
 		_, err := buffer.Write(log)
 		if err != nil {
@@ -131,6 +138,7 @@ func (d *Hook) Flush() error {
 			}
 		}
 	}
+
 	buffer.WriteString("]")
 
 	// prepare http request
@@ -138,11 +146,13 @@ func (d *Hook) Flush() error {
 	if err != nil {
 		return err
 	}
+
 	req.Header.Set("DD-API-KEY", d.key)
 	req.Header.Set("Content-Type", "application/json")
 
 	// do request
 	client := &http.Client{}
+
 	_, err = client.Do(req)
 	if err != nil {
 		return err
